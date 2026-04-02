@@ -1,0 +1,1187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tempo — How Good Is Your Timing?</title>
+<meta name="description" content="A rhythm memory game. We play you five patterns, then you tap them back. Solo or multiplayer.">
+<meta property="og:title" content="Tempo — How Good Is Your Timing?">
+<meta property="og:description" content="Test your rhythm memory. We play five patterns, you tap them back.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0a0a0f;
+  --bg2: #12121a;
+  --bg3: #1a1a26;
+  --surface: #16161f;
+  --surface2: #1e1e2a;
+  --border: rgba(255,255,255,0.06);
+  --border2: rgba(255,255,255,0.1);
+  --text: #e8e8ef;
+  --text2: #8888a0;
+  --text3: #555570;
+  --accent: #6ef0a5;
+  --accent2: #4dd88a;
+  --accent-glow: rgba(110, 240, 165, 0.15);
+  --accent-glow2: rgba(110, 240, 165, 0.06);
+  --red: #ff6b7a;
+  --yellow: #ffd76b;
+  --radius: 16px;
+  --radius-sm: 10px;
+  --font-display: 'Outfit', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+html { font-size: 16px; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-display);
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+  background-size: 60px 60px;
+  pointer-events: none;
+  z-index: 0;
+}
+body::after {
+  content: '';
+  position: fixed;
+  top: -200px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 800px;
+  height: 600px;
+  background: radial-gradient(ellipse, rgba(110,240,165,0.06) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+.app {
+  position: relative;
+  z-index: 1;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 40px 24px 60px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.screen { display: none; flex-direction: column; }
+.screen.active { display: flex; }
+.header { text-align: center; margin-bottom: 40px; }
+.header h1 {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  text-transform: lowercase;
+  color: var(--accent);
+  cursor: pointer;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 28px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+}
+.btn-primary {
+  background: var(--accent);
+  color: #0a0a0f;
+  font-weight: 600;
+}
+.btn-primary:hover {
+  background: var(--accent2);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 30px rgba(110,240,165,0.2);
+}
+.btn-secondary {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border2);
+}
+.btn-secondary:hover {
+  background: var(--bg3);
+  border-color: rgba(255,255,255,0.15);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--text2);
+  padding: 10px 20px;
+  font-size: 0.85rem;
+}
+.btn-ghost:hover { color: var(--text); }
+.btn-group { display: flex; gap: 12px; justify-content: center; margin-top: 24px; flex-wrap: wrap; }
+.btn-full { width: 100%; }
+.input-field {
+  width: 100%;
+  padding: 14px 18px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border2);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.input-field:focus { border-color: var(--accent); }
+.input-field::placeholder { color: var(--text3); }
+.difficulty-toggle {
+  display: flex;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  padding: 4px;
+  margin: 20px auto 0;
+  width: fit-content;
+}
+.difficulty-toggle button {
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 500;
+  border: none;
+  background: transparent;
+  color: var(--text3);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.difficulty-toggle button.active {
+  background: var(--bg3);
+  color: var(--text);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+.mode-cards { display: flex; flex-direction: column; gap: 12px; margin-top: 28px; }
+.mode-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+}
+.mode-card:hover {
+  border-color: var(--accent);
+  background: var(--surface2);
+  box-shadow: 0 4px 20px rgba(110,240,165,0.05);
+}
+.mode-card h3 { font-size: 1rem; font-weight: 600; margin-bottom: 6px; color: var(--text); }
+.mode-card p { font-size: 0.82rem; color: var(--text2); line-height: 1.5; }
+.lobby-link-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+}
+.lobby-link-box .link-text {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: all;
+}
+.lobby-link-box .copy-btn {
+  padding: 8px 16px;
+  background: var(--accent);
+  color: #0a0a0f;
+  border: none;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+.lobby-link-box .copy-btn:hover { background: var(--accent2); }
+.players-list { margin: 20px 0; }
+.players-list .pl-title {
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  color: var(--text3);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.player-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.player-row:last-child { border-bottom: none; }
+.player-avatar {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: var(--text2);
+  font-family: var(--font-mono);
+}
+.player-name { flex: 1; font-size: 0.9rem; color: var(--text); }
+.player-name .you { color: var(--accent); font-size: 0.7rem; margin-left: 6px; font-family: var(--font-mono); }
+.player-status { font-family: var(--font-mono); font-size: 0.75rem; }
+.player-status.waiting { color: var(--text3); }
+.player-status.playing { color: var(--yellow); }
+.player-status.done { color: var(--accent); }
+.round-indicator {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text3);
+  letter-spacing: 0.1em;
+  margin-bottom: 20px;
+}
+.beat-area {
+  position: relative;
+  height: 200px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  margin-bottom: 32px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.beat-area::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, var(--accent-glow2) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.beat-area.flash::before { opacity: 1; }
+.beat-ring {
+  width: 100px; height: 100px;
+  border-radius: 50%;
+  border: 2px solid var(--border2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.1s;
+}
+.beat-ring::after {
+  content: '';
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  transition: all 0.1s;
+}
+.beat-area.flash .beat-ring {
+  border-color: var(--accent);
+  box-shadow: 0 0 40px var(--accent-glow), 0 0 80px var(--accent-glow);
+  transform: scale(1.08);
+}
+.beat-area.flash .beat-ring::after {
+  background: var(--accent);
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+.timeline-container { margin-bottom: 32px; }
+.timeline-label {
+  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  letter-spacing: 0.1em;
+  color: var(--text3);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+}
+.timeline {
+  display: flex;
+  align-items: center;
+  height: 48px;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  padding: 0 16px;
+  overflow: hidden;
+}
+.timeline-beat {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--surface2);
+  border: 1.5px solid var(--border2);
+  flex-shrink: 0;
+  transition: all 0.3s ease;
+  z-index: 1;
+}
+.timeline-beat.played { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 12px var(--accent-glow); }
+.timeline-beat.current { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 12px var(--accent-glow); transform: scale(1.3); }
+.timeline-gap { flex: 1; height: 2px; background: var(--border); }
+.tap-zone { display: flex; flex-direction: column; align-items: center; gap: 12px; margin: 16px 0 32px; }
+.tap-btn {
+  width: 180px; height: 180px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--border2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.15s ease;
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.tap-btn::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  transition: all 0.15s;
+}
+.tap-btn:hover { border-color: var(--accent); transform: scale(1.02); }
+.tap-btn:active, .tap-btn.tapped {
+  background: var(--accent-glow);
+  border-color: var(--accent);
+  transform: scale(0.96);
+  box-shadow: 0 0 40px var(--accent-glow);
+}
+.tap-btn .icon { font-size: 2rem; color: var(--text2); transition: color 0.15s; }
+.tap-btn:active .icon, .tap-btn.tapped .icon { color: var(--accent); }
+.tap-btn .label { font-size: 0.8rem; color: var(--text3); font-family: var(--font-mono); letter-spacing: 0.05em; }
+.tap-hint { font-size: 0.75rem; color: var(--text3); font-family: var(--font-mono); }
+.listening-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--accent-glow2);
+  border: 1px solid rgba(110,240,165,0.15);
+  border-radius: 20px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--accent);
+  margin-bottom: 16px;
+}
+.listening-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: blink 1s ease infinite; }
+@keyframes blink { 0%,100%{opacity:1}50%{opacity:0.3} }
+.progress-dots { display: flex; gap: 8px; justify-content: center; margin-bottom: 24px; }
+.progress-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  transition: all 0.3s;
+}
+.progress-dot.done { background: var(--accent); border-color: var(--accent); }
+.progress-dot.active { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 8px var(--accent-glow); transform: scale(1.3); }
+.results-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  padding: 28px;
+  margin-bottom: 20px;
+}
+.result-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.result-row:last-child { border-bottom: none; }
+.result-row .idx { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text3); width: 24px; }
+.result-bar-wrap { flex: 1; margin: 0 16px; display: flex; flex-direction: column; gap: 4px; }
+.result-bar { height: 6px; border-radius: 3px; }
+.result-bar.target { background: var(--accent); opacity: 0.3; }
+.result-bar.guess { background: var(--accent); }
+.result-labels { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 0.65rem; color: var(--text3); }
+.result-score { font-family: var(--font-mono); font-size: 0.9rem; font-weight: 600; min-width: 48px; text-align: right; }
+.score-great { color: var(--accent); }
+.score-ok { color: var(--yellow); }
+.score-bad { color: var(--red); }
+.total-score { text-align: center; margin: 32px 0; }
+.total-score .value { font-family: var(--font-mono); font-size: 4rem; font-weight: 300; color: var(--text); }
+.total-score .max { font-family: var(--font-mono); font-size: 1.2rem; color: var(--text3); }
+.total-score .tagline { font-size: 0.9rem; color: var(--text2); margin-top: 8px; }
+.leaderboard {
+  background: var(--surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  padding: 24px;
+  margin-top: 20px;
+}
+.leaderboard .lb-title {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  color: var(--text3);
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+.lb-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.lb-row:last-child { border-bottom: none; }
+.lb-rank { font-family: var(--font-mono); font-size: 0.8rem; color: var(--text3); width: 24px; }
+.lb-rank.gold { color: var(--yellow); }
+.lb-name { flex: 1; font-size: 0.9rem; color: var(--text); }
+.lb-name .is-you { color: var(--accent); font-family: var(--font-mono); font-size: 0.7rem; margin-left: 6px; }
+.lb-score { font-family: var(--font-mono); font-size: 0.9rem; font-weight: 600; color: var(--accent); }
+.phase-label {
+  text-align: center;
+  font-size: 0.95rem;
+  color: var(--text2);
+  margin-bottom: 24px;
+  min-height: 24px;
+  line-height: 1.7;
+  max-width: 420px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.phase-label strong { color: var(--text); font-weight: 600; }
+.count-display {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 6rem;
+  font-weight: 200;
+  color: var(--accent);
+  margin: 60px 0;
+  opacity: 0;
+  transform: scale(0.8);
+  animation: countPulse 0.6s ease forwards;
+}
+@keyframes countPulse { 0%{opacity:0;transform:scale(0.8)}50%{opacity:1;transform:scale(1.05)}100%{opacity:1;transform:scale(1)} }
+.footer {
+  margin-top: auto;
+  padding-top: 48px;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text3);
+  font-family: var(--font-mono);
+}
+.toast {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-sm);
+  padding: 12px 24px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--accent);
+  z-index: 100;
+  transition: transform 0.3s ease;
+  pointer-events: none;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+.setup-notice {
+  background: rgba(255,215,107,0.08);
+  border: 1px solid rgba(255,215,107,0.2);
+  border-radius: var(--radius-sm);
+  padding: 16px 20px;
+  margin: 20px 0;
+  font-size: 0.82rem;
+  color: var(--yellow);
+  line-height: 1.6;
+}
+.setup-notice code {
+  background: rgba(0,0,0,0.3);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+@keyframes fadeInUp { from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)} }
+.fade-in { animation: fadeInUp 0.5s ease forwards; }
+.fade-in-d1 { animation: fadeInUp 0.5s ease 0.1s forwards; opacity: 0; }
+.fade-in-d2 { animation: fadeInUp 0.5s ease 0.2s forwards; opacity: 0; }
+.fade-in-d3 { animation: fadeInUp 0.5s ease 0.3s forwards; opacity: 0; }
+@media (max-width: 480px) {
+  .app { padding: 24px 16px 40px; }
+  .tap-btn { width: 150px; height: 150px; }
+  .count-display { font-size: 4.5rem; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ═══ HOME ═══ -->
+  <div class="screen active" id="screen-home">
+    <div class="header fade-in"><h1 onclick="resetGame()">tempo</h1></div>
+    <p class="phase-label fade-in-d1">Most people think they have good rhythm.<br>This is a simple game to find out.</p>
+    <p class="phase-label fade-in-d2" style="font-size:0.88rem;">We'll play you <strong>five rhythmic patterns</strong>, then you'll tap them back from memory.</p>
+    <div class="mode-cards fade-in-d3">
+      <div class="mode-card" onclick="showNameScreen('solo')">
+        <h3>Solo</h3>
+        <p>Test your timing memory. Just you and five rhythms.</p>
+      </div>
+      <div class="mode-card" onclick="showNameScreen('multi')">
+        <h3>Multiplayer</h3>
+        <p>Same five patterns for everyone. Compete to see who has the best rhythm.</p>
+      </div>
+      <div class="mode-card" onclick="showNameScreen('daily')">
+        <h3>Daily</h3>
+        <p>Five patterns. Same for everyone on Earth. You get one shot.</p>
+      </div>
+    </div>
+    <div class="difficulty-toggle fade-in-d3">
+      <button class="active" onclick="setDifficulty('easy',this)">Easy</button>
+      <button onclick="setDifficulty('hard',this)">Hard</button>
+    </div>
+    <div class="footer">Tempo v1.0</div>
+  </div>
+
+  <!-- ═══ NAME ═══ -->
+  <div class="screen" id="screen-name">
+    <div class="header"><h1 onclick="resetGame()">tempo</h1></div>
+    <p class="phase-label" id="name-subtitle">Enter your name</p>
+    <div style="max-width:360px;margin:0 auto;width:100%;">
+      <input class="input-field" id="name-input" type="text" placeholder="Your name" maxlength="20" autocomplete="off">
+      <div id="firebase-notice"></div>
+      <div class="btn-group">
+        <button class="btn btn-primary btn-full" onclick="onNameContinue()">Continue</button>
+      </div>
+      <div class="btn-group" style="margin-top:8px;">
+        <button class="btn btn-ghost" onclick="resetGame()">← Back</button>
+      </div>
+    </div>
+    <div class="footer">Tempo v1.0</div>
+  </div>
+
+  <!-- ═══ LOBBY ═══ -->
+  <div class="screen" id="screen-lobby">
+    <div class="header"><h1 onclick="resetGame()">tempo</h1></div>
+    <p class="phase-label"><strong>Multiplayer lobby</strong></p>
+    <p class="phase-label" style="font-size:0.85rem;margin-top:-16px;">Share this link. Everyone plays the same patterns.</p>
+    <div class="lobby-link-box">
+      <span class="link-text" id="lobby-link-text">generating...</span>
+      <button class="copy-btn" id="lobby-copy-btn" onclick="copyLobbyLink()">Copy</button>
+    </div>
+    <div class="players-list">
+      <div class="pl-title">Players</div>
+      <div id="players-container"></div>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="startGameFromLobby()">Start game</button>
+      <button class="btn btn-ghost" onclick="resetGame()">← Leave</button>
+    </div>
+    <div class="footer">Tempo v1.0</div>
+  </div>
+
+  <!-- ═══ COUNTDOWN ═══ -->
+  <div class="screen" id="screen-countdown">
+    <div class="header"><h1>tempo</h1></div>
+    <p class="phase-label">Get ready...</p>
+    <div class="count-display" id="countdown-num">3</div>
+  </div>
+
+  <!-- ═══ LISTEN ═══ -->
+  <div class="screen" id="screen-listen">
+    <div class="header"><h1>tempo</h1></div>
+    <div class="round-indicator" id="listen-round">pattern 1 / 5</div>
+    <div class="progress-dots" id="listen-progress"></div>
+    <p class="phase-label"><strong>Listen</strong> to the rhythm</p>
+    <div class="beat-area" id="beat-area"><div class="beat-ring"></div></div>
+    <div class="timeline-container">
+      <div class="timeline-label">Beats</div>
+      <div class="timeline" id="listen-timeline"></div>
+    </div>
+  </div>
+
+  <!-- ═══ RECALL ═══ -->
+  <div class="screen" id="screen-recall">
+    <div class="header"><h1>tempo</h1></div>
+    <div class="round-indicator" id="recall-round">pattern 1 / 5</div>
+    <div class="progress-dots" id="recall-progress"></div>
+    <p class="phase-label"><strong>Tap</strong> the rhythm back</p>
+    <div class="beat-area" id="recall-beat-area"><div class="beat-ring"></div></div>
+    <div class="timeline-container">
+      <div class="timeline-label">Your taps</div>
+      <div class="timeline" id="recall-timeline"></div>
+    </div>
+    <div class="tap-zone">
+      <div class="listening-indicator"><span class="listening-dot"></span>listening</div>
+      <button class="tap-btn" id="tap-btn">
+        <span class="icon">⬤</span>
+        <span class="label">tap</span>
+      </button>
+      <span class="tap-hint">tap or press space · <span id="taps-remaining">0</span> left</span>
+    </div>
+  </div>
+
+  <!-- ═══ RESULTS ═══ -->
+  <div class="screen" id="screen-results">
+    <div class="header"><h1 onclick="resetGame()">tempo</h1></div>
+    <div class="total-score fade-in">
+      <span class="value" id="total-score-val">0.00</span><span class="max">/50</span>
+      <div class="tagline" id="score-tagline"></div>
+    </div>
+    <div class="results-card fade-in-d1" id="results-list"></div>
+    <div class="leaderboard fade-in-d2" id="leaderboard-section" style="display:none;">
+      <div class="lb-title" id="lb-title">Leaderboard</div>
+      <div id="lb-rows"></div>
+    </div>
+    <div class="btn-group fade-in-d3">
+      <button class="btn btn-primary" onclick="resetGame()">Play Again</button>
+      <button class="btn btn-secondary" onclick="shareScore()">Share</button>
+    </div>
+    <div class="footer">Tempo v1.0</div>
+  </div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  FIREBASE — Replace with your config from Firebase Console
+//  Free tier is enough. Steps:
+//  1. https://console.firebase.google.com → Create project
+//  2. Build → Realtime Database → Create (Start in test mode)
+//  3. Project Settings → Your apps → Web → Register → Copy config
+//  4. Paste below
+//
+//  Without Firebase, Solo mode works fully. Multi/Daily work
+//  locally but scores won't sync across devices.
+// ═══════════════════════════════════════════════════════════════
+const FIREBASE_CONFIG = {
+  // PASTE YOUR FIREBASE CONFIG HERE
+  apiKey: "",
+  authDomain: "",
+  databaseURL: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: ""
+};
+
+let db = null;
+let firebaseReady = false;
+
+function initFirebase() {
+  try {
+    if (!FIREBASE_CONFIG.apiKey || FIREBASE_CONFIG.apiKey === "") {
+      console.log('Firebase not configured — offline mode active');
+      return;
+    }
+    firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.database();
+    firebaseReady = true;
+    console.log('Firebase connected');
+  } catch (e) {
+    console.warn('Firebase init failed:', e);
+  }
+}
+initFirebase();
+
+// ═══ AUDIO ═══
+let audioCtx;
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+function playTick(freq = 880, dur = 0.06, vol = 0.25) {
+  ensureAudio();
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = 'sine'; o.frequency.value = freq;
+  g.gain.setValueAtTime(vol, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+  o.connect(g).connect(audioCtx.destination);
+  o.start(); o.stop(audioCtx.currentTime + dur);
+}
+
+// ═══ SEEDED RNG ═══
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    var t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function hashCode(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h |= 0; }
+  return h;
+}
+
+// ═══ STATE ═══
+let difficulty = 'easy';
+let gameMode = 'solo';
+let playerName = '';
+let playerId = '';
+let lobbyCode = '';
+let currentRound = 0;
+const TOTAL_ROUNDS = 5;
+let patterns = [];
+let playerTaps = [];
+let allResults = [];
+let tapsNeeded = 0;
+let awaitingTaps = false;
+let lobbyListenerRef = null;
+let lbListenerRef = null;
+
+const SETTINGS = {
+  easy: { minBeats: 3, maxBeats: 5, minGap: 250, maxGap: 1200 },
+  hard: { minBeats: 4, maxBeats: 7, minGap: 150, maxGap: 1500 }
+};
+
+// ═══ HELPERS ═══
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function setDifficulty(d, el) {
+  difficulty = d;
+  document.querySelectorAll('.difficulty-toggle button').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+function genCode() {
+  const c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let r = '';
+  for (let i = 0; i < 6; i++) r += c[Math.floor(Math.random() * c.length)];
+  return r;
+}
+function genId() {
+  return 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+function getDailySeed() {
+  const d = new Date();
+  return `daily-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// ═══ PATTERN GENERATION ═══
+function generatePatterns(seed) {
+  const s = SETTINGS[difficulty];
+  const rng = seed ? mulberry32(hashCode(seed)) : mulberry32(Date.now());
+  patterns = [];
+  for (let i = 0; i < TOTAL_ROUNDS; i++) {
+    const numBeats = Math.floor(rng() * (s.maxBeats - s.minBeats + 1)) + s.minBeats;
+    const intervals = [];
+    for (let j = 0; j < numBeats - 1; j++) {
+      intervals.push(Math.round((rng() * (s.maxGap - s.minGap) + s.minGap) / 50) * 50);
+    }
+    patterns.push({ beats: numBeats, intervals });
+  }
+}
+
+// ═══ FLOW ═══
+function showNameScreen(mode) {
+  gameMode = mode;
+  showScreen('screen-name');
+  const sub = document.getElementById('name-subtitle');
+  if (mode === 'solo') sub.textContent = 'Enter your name';
+  else if (mode === 'multi') sub.textContent = 'Enter your name for multiplayer';
+  else sub.textContent = 'Enter your name for the daily challenge';
+
+  // Show notice if firebase not ready and multiplayer
+  const notice = document.getElementById('firebase-notice');
+  if ((mode === 'multi' || mode === 'daily') && !firebaseReady) {
+    notice.innerHTML = '<div class="setup-notice">Firebase not configured — multiplayer will work locally only. To enable online play, add your Firebase config to the HTML file and redeploy.</div>';
+  } else {
+    notice.innerHTML = '';
+  }
+
+  const inp = document.getElementById('name-input');
+  inp.value = playerName || '';
+  setTimeout(() => inp.focus(), 100);
+}
+
+function onNameContinue() {
+  const name = document.getElementById('name-input').value.trim();
+  if (!name) { showToast('Enter a name'); return; }
+  playerName = name;
+  playerId = genId();
+  ensureAudio();
+
+  if (gameMode === 'solo') {
+    generatePatterns(null);
+    startCountdownThenPlay();
+  } else if (gameMode === 'multi') {
+    const urlCode = new URLSearchParams(window.location.search).get('c');
+    lobbyCode = urlCode ? urlCode.toUpperCase() : genCode();
+    generatePatterns(lobbyCode + '-' + difficulty);
+    setupLobby();
+  } else if (gameMode === 'daily') {
+    lobbyCode = getDailySeed();
+    generatePatterns(lobbyCode + '-' + difficulty);
+    if (firebaseReady) {
+      db.ref('daily/' + lobbyCode + '/players/' + playerId).set({ name: playerName, score: null, ts: Date.now() });
+    }
+    startCountdownThenPlay();
+  }
+}
+
+document.getElementById('name-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') onNameContinue();
+});
+
+// ═══ LOBBY ═══
+function setupLobby() {
+  showScreen('screen-lobby');
+  const url = window.location.origin + window.location.pathname + '?c=' + lobbyCode;
+  document.getElementById('lobby-link-text').textContent = url;
+  history.replaceState(null, '', '?c=' + lobbyCode);
+
+  if (firebaseReady) {
+    const myRef = db.ref('lobbies/' + lobbyCode + '/players/' + playerId);
+    myRef.set({ name: playerName, status: 'waiting', score: null, joinedAt: Date.now() });
+    myRef.onDisconnect().remove();
+
+    cleanupLobbyListeners();
+    const ref = db.ref('lobbies/' + lobbyCode + '/players');
+    lobbyListenerRef = ref;
+    ref.on('value', snap => renderPlayers(snap.val() || {}));
+  } else {
+    renderPlayers({ [playerId]: { name: playerName, status: 'waiting', score: null } });
+  }
+}
+
+function renderPlayers(obj) {
+  const c = document.getElementById('players-container');
+  c.innerHTML = '';
+  Object.entries(obj).sort((a,b) => (a[1].joinedAt||0)-(b[1].joinedAt||0)).forEach(([pid, p]) => {
+    const me = pid === playerId;
+    const ini = (p.name||'?').slice(0,2).toUpperCase();
+    const sc = p.status === 'done' ? 'done' : p.status === 'playing' ? 'playing' : 'waiting';
+    const st = p.score != null ? p.score.toFixed(1)+'/50' : p.status === 'playing' ? 'playing...' : 'waiting';
+    c.innerHTML += `<div class="player-row">
+      <div class="player-avatar">${ini}</div>
+      <div class="player-name">${p.name}${me ? '<span class="you">you</span>' : ''}</div>
+      <div class="player-status ${sc}">${st}</div>
+    </div>`;
+  });
+}
+
+function copyLobbyLink() {
+  const url = document.getElementById('lobby-link-text').textContent;
+  navigator.clipboard.writeText(url).then(() => {
+    document.getElementById('lobby-copy-btn').textContent = 'Copied!';
+    setTimeout(() => document.getElementById('lobby-copy-btn').textContent = 'Copy', 1500);
+  }).catch(() => showToast('Copy the link manually'));
+}
+
+function startGameFromLobby() {
+  if (firebaseReady) {
+    db.ref('lobbies/' + lobbyCode + '/players/' + playerId + '/status').set('playing');
+  }
+  startCountdownThenPlay();
+}
+
+function cleanupLobbyListeners() {
+  if (lobbyListenerRef) { lobbyListenerRef.off(); lobbyListenerRef = null; }
+  if (lbListenerRef) { lbListenerRef.off(); lbListenerRef = null; }
+}
+
+// ═══ GAME ═══
+async function startCountdownThenPlay() {
+  currentRound = 0;
+  allResults = [];
+  await doCountdown();
+  playRound();
+}
+
+async function doCountdown() {
+  showScreen('screen-countdown');
+  const el = document.getElementById('countdown-num');
+  for (let i = 3; i >= 1; i--) {
+    el.textContent = i;
+    el.style.animation = 'none';
+    void el.offsetHeight;
+    el.style.animation = 'countPulse 0.6s ease forwards';
+    playTick(440 + (3 - i) * 220, 0.08, 0.15);
+    await sleep(800);
+  }
+}
+
+function buildTimeline(container, numBeats) {
+  container.innerHTML = '';
+  for (let i = 0; i < numBeats; i++) {
+    const d = document.createElement('div');
+    d.className = 'timeline-beat'; d.dataset.index = i;
+    container.appendChild(d);
+    if (i < numBeats - 1) {
+      const g = document.createElement('div');
+      g.className = 'timeline-gap';
+      container.appendChild(g);
+    }
+  }
+}
+
+function buildProgress(container, current) {
+  container.innerHTML = '';
+  for (let i = 0; i < TOTAL_ROUNDS; i++) {
+    const d = document.createElement('div');
+    d.className = 'progress-dot';
+    if (i < current) d.classList.add('done');
+    if (i === current) d.classList.add('active');
+    container.appendChild(d);
+  }
+}
+
+function flashBeat(id) {
+  const a = document.getElementById(id);
+  a.classList.add('flash');
+  playTick();
+  setTimeout(() => a.classList.remove('flash'), 120);
+}
+
+async function playRound() {
+  const pat = patterns[currentRound];
+
+  showScreen('screen-listen');
+  document.getElementById('listen-round').textContent = `pattern ${currentRound + 1} / ${TOTAL_ROUNDS}`;
+  buildProgress(document.getElementById('listen-progress'), currentRound);
+  buildTimeline(document.getElementById('listen-timeline'), pat.beats);
+
+  await sleep(600);
+
+  const tl = document.getElementById('listen-timeline');
+  for (let i = 0; i < pat.beats; i++) {
+    const dot = tl.querySelector(`[data-index="${i}"]`);
+    dot.classList.add('current');
+    flashBeat('beat-area');
+    await sleep(150);
+    dot.classList.remove('current');
+    dot.classList.add('played');
+    if (i < pat.intervals.length) await sleep(pat.intervals[i]);
+  }
+
+  await sleep(500);
+
+  showScreen('screen-recall');
+  document.getElementById('recall-round').textContent = `pattern ${currentRound + 1} / ${TOTAL_ROUNDS}`;
+  buildProgress(document.getElementById('recall-progress'), currentRound);
+  buildTimeline(document.getElementById('recall-timeline'), pat.beats);
+  document.getElementById('taps-remaining').textContent = pat.beats;
+
+  playerTaps = [];
+  tapsNeeded = pat.beats;
+  awaitingTaps = true;
+}
+
+function handleTap() {
+  if (!awaitingTaps) return;
+  playerTaps.push(performance.now());
+
+  const idx = playerTaps.length - 1;
+  const dot = document.getElementById('recall-timeline').querySelector(`[data-index="${idx}"]`);
+  if (dot) { dot.classList.add('played','current'); setTimeout(() => dot.classList.remove('current'), 150); }
+  flashBeat('recall-beat-area');
+
+  document.getElementById('taps-remaining').textContent = tapsNeeded - playerTaps.length;
+  if (playerTaps.length >= tapsNeeded) {
+    awaitingTaps = false;
+    setTimeout(() => finishRound(), 400);
+  }
+}
+
+document.getElementById('tap-btn').addEventListener('pointerdown', e => {
+  e.preventDefault();
+  document.getElementById('tap-btn').classList.add('tapped');
+  setTimeout(() => document.getElementById('tap-btn').classList.remove('tapped'), 120);
+  handleTap();
+});
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && awaitingTaps) {
+    e.preventDefault();
+    document.getElementById('tap-btn').classList.add('tapped');
+    setTimeout(() => document.getElementById('tap-btn').classList.remove('tapped'), 120);
+    handleTap();
+  }
+});
+
+// ═══ SCORING ═══
+function scoreRound(target, player) {
+  if (!target.length) return 10;
+  let total = 0;
+  const maxPer = 10 / target.length;
+  for (let i = 0; i < target.length; i++) {
+    const t = target[i], p = player[i] != null ? player[i] : 0;
+    const ratio = Math.max(t,p) > 0 ? Math.min(t,p)/Math.max(t,p) : 0;
+    const diff = 1 - ratio;
+    const sharp = maxPer * Math.exp(-diff*diff / (2*0.04*0.04));
+    const gentle = maxPer * 0.3 * Math.exp(-diff*diff / (2*0.15*0.15));
+    total += Math.max(sharp, gentle);
+  }
+  return total;
+}
+
+function finishRound() {
+  const pat = patterns[currentRound];
+  const pi = [];
+  for (let i = 1; i < playerTaps.length; i++) pi.push(playerTaps[i] - playerTaps[i-1]);
+  const score = scoreRound(pat.intervals, pi);
+  allResults.push({ targetIntervals: pat.intervals, playerIntervals: pi, score, beats: pat.beats });
+  currentRound++;
+  if (currentRound < TOTAL_ROUNDS) doMini().then(() => playRound());
+  else onFinished();
+}
+
+async function doMini() {
+  showScreen('screen-countdown');
+  const el = document.getElementById('countdown-num');
+  el.textContent = '↻';
+  el.style.animation = 'none';
+  void el.offsetHeight;
+  el.style.animation = 'countPulse 0.6s ease forwards';
+  await sleep(800);
+}
+
+function onFinished() {
+  const total = allResults.reduce((s,r) => s + r.score, 0);
+  if (firebaseReady) {
+    if (gameMode === 'multi') db.ref('lobbies/'+lobbyCode+'/players/'+playerId).update({ status:'done', score:total });
+    if (gameMode === 'daily') db.ref('daily/'+lobbyCode+'/players/'+playerId).update({ score:total, name:playerName });
+  }
+  showResultsScreen(total);
+}
+
+function showResultsScreen(total) {
+  showScreen('screen-results');
+  document.getElementById('total-score-val').textContent = total.toFixed(2);
+
+  const pct = total / 50;
+  let tag = '';
+  if (pct >= 0.95) tag = "Metronome-level precision. You're a machine.";
+  else if (pct >= 0.8) tag = "Rock solid rhythm. Impressive.";
+  else if (pct >= 0.6) tag = "Not bad — decent internal timing.";
+  else if (pct >= 0.4) tag = "Room for improvement. Try again?";
+  else tag = "Rhythm isn't your forte. Yet.";
+  document.getElementById('score-tagline').textContent = tag;
+
+  const list = document.getElementById('results-list');
+  list.innerHTML = '';
+  const allI = allResults.flatMap(r => [...r.targetIntervals, ...r.playerIntervals]);
+  const maxI = Math.max(...allI, 1);
+
+  allResults.forEach((r, i) => {
+    const row = document.createElement('div');
+    row.className = 'result-row';
+    const sc = r.score >= 8 ? 'score-great' : r.score >= 5 ? 'score-ok' : 'score-bad';
+    let bars = '';
+    for (let j = 0; j < r.targetIntervals.length; j++) {
+      const tw = (r.targetIntervals[j]/maxI)*100;
+      const pw = (r.playerIntervals[j] != null ? r.playerIntervals[j]/maxI*100 : 0);
+      bars += `<div style="display:flex;gap:4px;align-items:center;margin-bottom:4px;">
+        <span style="font-family:var(--font-mono);font-size:0.6rem;color:var(--text3);width:16px;">${j+1}</span>
+        <div style="flex:1;">
+          <div class="result-bar target" style="width:${tw}%"></div>
+          <div class="result-bar guess" style="width:${pw}%;margin-top:2px;"></div>
+        </div>
+        <span style="font-family:var(--font-mono);font-size:0.6rem;color:var(--text3);width:70px;text-align:right;">
+          ${Math.round(r.targetIntervals[j])} / ${r.playerIntervals[j] != null ? Math.round(r.playerIntervals[j]) : '—'}ms
+        </span>
+      </div>`;
+    }
+    row.innerHTML = `<div class="idx">#${i+1}</div>
+      <div class="result-bar-wrap">${bars}<div class="result-labels"><span>target vs yours</span></div></div>
+      <div class="result-score ${sc}">${r.score.toFixed(1)}</div>`;
+    list.appendChild(row);
+  });
+
+  // Leaderboard
+  const lb = document.getElementById('leaderboard-section');
+  if ((gameMode === 'multi' || gameMode === 'daily') && firebaseReady) {
+    lb.style.display = 'block';
+    document.getElementById('lb-title').textContent = gameMode === 'daily' ? 'Daily leaderboard' : 'Lobby leaderboard';
+    const path = gameMode === 'multi' ? 'lobbies/'+lobbyCode+'/players' : 'daily/'+lobbyCode+'/players';
+    if (lbListenerRef) lbListenerRef.off();
+    const ref = db.ref(path);
+    lbListenerRef = ref;
+    ref.on('value', snap => {
+      const rows = document.getElementById('lb-rows');
+      rows.innerHTML = '';
+      const entries = [];
+      snap.forEach(c => { const d = c.val(); if (d.score != null) entries.push({id:c.key,...d}); });
+      entries.sort((a,b) => b.score - a.score);
+      entries.forEach((e,i) => {
+        const me = e.id === playerId;
+        rows.innerHTML += `<div class="lb-row">
+          <div class="lb-rank ${i===0?'gold':''}">${i+1}</div>
+          <div class="lb-name">${e.name}${me?'<span class="is-you">you</span>':''}</div>
+          <div class="lb-score">${e.score.toFixed(1)}</div>
+        </div>`;
+      });
+    });
+  } else {
+    lb.style.display = 'none';
+  }
+}
+
+function shareScore() {
+  const total = allResults.reduce((s,r) => s + r.score, 0);
+  let text = `⏱ Tempo — ${total.toFixed(1)}/50 (${difficulty})\n`;
+  allResults.forEach(r => {
+    const p = r.score / 10;
+    text += p >= 0.8 ? '🟩' : p >= 0.5 ? '🟨' : '🟥';
+  });
+  text += '\n';
+  if (gameMode === 'multi') text += window.location.origin + window.location.pathname + '?c=' + lobbyCode;
+  else if (gameMode === 'daily') text += window.location.origin + window.location.pathname + '?mode=daily';
+  else text += window.location.origin + window.location.pathname;
+
+  if (navigator.share) navigator.share({ text }).catch(() => {});
+  else navigator.clipboard.writeText(text).then(() => showToast('Score copied!')).catch(() => {});
+}
+
+function resetGame() {
+  cleanupLobbyListeners();
+  history.replaceState(null, '', window.location.pathname);
+  showScreen('screen-home');
+}
+
+// ═══ URL AUTO-JOIN ═══
+(function checkUrl() {
+  const p = new URLSearchParams(window.location.search);
+  if (p.get('c')) { gameMode = 'multi'; lobbyCode = p.get('c').toUpperCase(); showNameScreen('multi'); }
+  else if (p.get('mode') === 'daily') { showNameScreen('daily'); }
+})();
+</script>
+</body>
+</html>
