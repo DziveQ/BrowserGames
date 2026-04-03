@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Estimate — How Many Dots?</title>
+<meta name="description" content="A dot estimation game. Dots flash for a split second. How many were there?">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0a0a0f;
+  --bg2: #12121a;
+  --bg3: #1a1a26;
+  --surface: #16161f;
+  --surface2: #1e1e2a;
+  --border: rgba(255,255,255,0.06);
+  --border2: rgba(255,255,255,0.1);
+  --text: #e8e8ef;
+  --text2: #8888a0;
+  --text3: #555570;
+  --accent: #6ef0a5;
+  --accent2: #4dd88a;
+  --accent-glow: rgba(110, 240, 165, 0.15);
+  --accent-glow2: rgba(110, 240, 165, 0.06);
+  --red: #ff6b7a;
+  --yellow: #ffd76b;
+  --radius: 16px;
+  --radius-sm: 10px;
+  --font-display: 'Outfit', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+html { font-size: 16px; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-display);
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+  background-size: 60px 60px;
+  pointer-events: none; z-index: 0;
+}
+body::after {
+  content: '';
+  position: fixed; top: -200px; left: 50%; transform: translateX(-50%);
+  width: 800px; height: 600px;
+  background: radial-gradient(ellipse, rgba(110,240,165,0.06) 0%, transparent 70%);
+  pointer-events: none; z-index: 0;
+}
+.app {
+  position: relative; z-index: 1;
+  max-width: 560px; margin: 0 auto;
+  padding: 40px 24px 60px;
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+}
+.screen { display: none; flex-direction: column; }
+.screen.active { display: flex; }
+.header { text-align: center; margin-bottom: 40px; }
+.header h1 {
+  font-family: var(--font-mono);
+  font-size: 1rem; font-weight: 500;
+  letter-spacing: 0.15em; text-transform: lowercase;
+  color: var(--accent); cursor: pointer;
+}
+.back-link {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono); font-size: 0.72rem;
+  color: var(--text3); text-decoration: none;
+  margin-bottom: 6px; transition: color 0.2s;
+}
+.back-link:hover { color: var(--text2); }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 14px 28px; border-radius: var(--radius-sm);
+  font-family: var(--font-display); font-size: 0.95rem; font-weight: 500;
+  cursor: pointer; border: none; transition: all 0.2s ease;
+}
+.btn-primary { background: var(--accent); color: #0a0a0f; font-weight: 600; }
+.btn-primary:hover { background: var(--accent2); transform: translateY(-1px); box-shadow: 0 8px 30px rgba(110,240,165,0.2); }
+.btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border2); }
+.btn-secondary:hover { background: var(--bg3); border-color: rgba(255,255,255,0.15); }
+.btn-ghost { background: transparent; color: var(--text2); padding: 10px 20px; font-size: 0.85rem; }
+.btn-ghost:hover { color: var(--text); }
+.btn-group { display: flex; gap: 12px; justify-content: center; margin-top: 24px; flex-wrap: wrap; }
+.btn-full { width: 100%; }
+.input-field {
+  width: 100%; padding: 14px 18px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border2); background: var(--surface);
+  color: var(--text); font-family: var(--font-display); font-size: 0.95rem;
+  outline: none; transition: border-color 0.2s;
+}
+.input-field:focus { border-color: var(--accent); }
+.input-field::placeholder { color: var(--text3); }
+.difficulty-toggle {
+  display: flex; background: var(--surface); border-radius: var(--radius-sm);
+  border: 1px solid var(--border); padding: 4px; margin: 20px auto 0; width: fit-content;
+}
+.difficulty-toggle button {
+  padding: 10px 24px; border-radius: 8px; font-family: var(--font-display);
+  font-size: 0.85rem; font-weight: 500; border: none; background: transparent;
+  color: var(--text3); cursor: pointer; transition: all 0.2s;
+}
+.difficulty-toggle button.active { background: var(--bg3); color: var(--text); box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+.mode-cards { display: flex; flex-direction: column; gap: 12px; margin-top: 28px; }
+.mode-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 24px; cursor: pointer;
+  transition: all 0.2s; text-align: left;
+}
+.mode-card:hover { border-color: var(--accent); background: var(--surface2); box-shadow: 0 4px 20px rgba(110,240,165,0.05); }
+.mode-card h3 { font-size: 1rem; font-weight: 600; margin-bottom: 6px; color: var(--text); }
+.mode-card p { font-size: 0.82rem; color: var(--text2); line-height: 1.5; }
+.lobby-link-box {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 14px 18px;
+  display: flex; align-items: center; gap: 12px; margin: 16px 0;
+}
+.lobby-link-box .link-text { flex: 1; font-family: var(--font-mono); font-size: 0.78rem; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: all; }
+.lobby-link-box .copy-btn { padding: 8px 16px; background: var(--accent); color: #0a0a0f; border: none; border-radius: 6px; font-family: var(--font-mono); font-size: 0.75rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.2s; }
+.lobby-link-box .copy-btn:hover { background: var(--accent2); }
+.players-list { margin: 20px 0; }
+.players-list .pl-title { font-size: 0.75rem; font-family: var(--font-mono); color: var(--text3); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 12px; }
+.player-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.player-row:last-child { border-bottom: none; }
+.player-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--surface2); border: 1px solid var(--border2); display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: var(--text2); font-family: var(--font-mono); }
+.player-name { flex: 1; font-size: 0.9rem; color: var(--text); }
+.player-name .you { color: var(--accent); font-size: 0.7rem; margin-left: 6px; font-family: var(--font-mono); }
+.player-status { font-family: var(--font-mono); font-size: 0.75rem; }
+.player-status.waiting { color: var(--text3); }
+.player-status.playing { color: var(--yellow); }
+.player-status.done { color: var(--accent); }
+.phase-label { text-align: center; font-size: 0.95rem; color: var(--text2); margin-bottom: 24px; min-height: 24px; line-height: 1.7; max-width: 420px; margin-left: auto; margin-right: auto; }
+.phase-label strong { color: var(--text); font-weight: 600; }
+.count-display { text-align: center; font-family: var(--font-mono); font-size: 6rem; font-weight: 200; color: var(--accent); margin: 60px 0; opacity: 0; transform: scale(0.8); animation: countPulse 0.6s ease forwards; }
+@keyframes countPulse { 0%{opacity:0;transform:scale(0.8)}50%{opacity:1;transform:scale(1.05)}100%{opacity:1;transform:scale(1)} }
+.progress-dots { display: flex; gap: 8px; justify-content: center; margin-bottom: 24px; }
+.progress-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--surface2); border: 1px solid var(--border2); transition: all 0.3s; }
+.progress-dot.done { background: var(--accent); border-color: var(--accent); }
+.progress-dot.active { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 8px var(--accent-glow); transform: scale(1.3); }
+.round-indicator { text-align: center; font-family: var(--font-mono); font-size: 0.8rem; color: var(--text3); letter-spacing: 0.1em; margin-bottom: 20px; }
+
+/* ── Dot Canvas ── */
+.dot-area {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4/3;
+  max-height: 280px;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 24px;
+  flex-shrink: 0;
+}
+.dot-area canvas {
+  width: 100%; height: 100%;
+  display: block;
+}
+.dot-area-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text3);
+  letter-spacing: 0.08em;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+.flash-timer-bar {
+  position: absolute;
+  bottom: 0; left: 0;
+  height: 3px;
+  background: var(--accent);
+  border-radius: 0 0 var(--radius) var(--radius);
+  transition: none;
+}
+
+/* ── Guess Input ── */
+.guess-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 8px;
+}
+.guess-label {
+  font-size: 0.85rem;
+  color: var(--text2);
+  font-family: var(--font-mono);
+  letter-spacing: 0.05em;
+}
+.guess-controls {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.guess-btn {
+  width: 72px; height: 72px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 1.8rem;
+  color: var(--text2);
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.guess-btn:hover { background: var(--surface2); color: var(--text); }
+.guess-btn:active { background: var(--bg3); transform: scale(0.93); }
+.guess-number {
+  min-width: 110px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 3rem;
+  font-weight: 300;
+  color: var(--text);
+  border-left: 1px solid var(--border2);
+  border-right: 1px solid var(--border2);
+  padding: 0 12px;
+  line-height: 72px;
+  user-select: none;
+}
+.guess-hint { font-size: 0.72rem; color: var(--text3); font-family: var(--font-mono); }
+
+/* hold-to-accelerate buttons */
+.guess-btn.holding { color: var(--accent); }
+
+/* ── Reveal screen ── */
+.reveal-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px 28px;
+  text-align: center;
+  margin-bottom: 20px;
+}
+.reveal-actual {
+  font-family: var(--font-mono);
+  font-size: 5rem;
+  font-weight: 200;
+  color: var(--text);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.reveal-actual-label {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text3);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 24px;
+}
+.reveal-guess-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+.reveal-guess-block { text-align: center; }
+.reveal-guess-block .val {
+  font-family: var(--font-mono);
+  font-size: 2rem;
+  font-weight: 400;
+  color: var(--text2);
+}
+.reveal-guess-block .lbl {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.reveal-score {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 1.6rem;
+  font-weight: 600;
+  padding: 12px 28px;
+  border-radius: var(--radius-sm);
+  margin-top: 8px;
+}
+.reveal-score.great { color: var(--accent); background: var(--accent-glow2); border: 1px solid rgba(110,240,165,0.15); }
+.reveal-score.ok { color: var(--yellow); background: rgba(255,215,107,0.06); border: 1px solid rgba(255,215,107,0.15); }
+.reveal-score.bad { color: var(--red); background: rgba(255,107,122,0.06); border: 1px solid rgba(255,107,122,0.15); }
+.reveal-diff {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text3);
+  margin-top: 10px;
+}
+
+/* ── Results ── */
+.total-score { text-align: center; margin: 32px 0; }
+.total-score .value { font-family: var(--font-mono); font-size: 4rem; font-weight: 300; color: var(--text); }
+.total-score .max { font-family: var(--font-mono); font-size: 1.2rem; color: var(--text3); }
+.total-score .tagline { font-size: 0.9rem; color: var(--text2); margin-top: 8px; }
+.results-card { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); padding: 24px; margin-bottom: 20px; }
+.result-row { display: flex; align-items: center; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+.result-row:last-child { border-bottom: none; }
+.result-idx { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text3); width: 20px; flex-shrink: 0; }
+.result-bar-section { flex: 1; display: flex; flex-direction: column; gap: 5px; }
+.result-nums { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 0.72rem; color: var(--text3); }
+.result-bar-bg { height: 6px; border-radius: 3px; background: var(--surface2); position: relative; overflow: visible; }
+.result-bar-actual { height: 100%; border-radius: 3px; background: rgba(110,240,165,0.3); position: absolute; top: 0; left: 0; }
+.result-bar-guess { height: 100%; border-radius: 3px; background: var(--accent); position: absolute; top: 0; left: 0; transition: width 0.4s ease; }
+.result-score-pill { font-family: var(--font-mono); font-size: 0.85rem; font-weight: 600; min-width: 42px; text-align: right; flex-shrink: 0; }
+.score-great { color: var(--accent); }
+.score-ok { color: var(--yellow); }
+.score-bad { color: var(--red); }
+.leaderboard { background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); padding: 24px; margin-top: 20px; }
+.leaderboard .lb-title { font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.1em; color: var(--text3); text-transform: uppercase; margin-bottom: 16px; }
+.lb-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.lb-row:last-child { border-bottom: none; }
+.lb-rank { font-family: var(--font-mono); font-size: 0.8rem; color: var(--text3); width: 24px; }
+.lb-rank.gold { color: var(--yellow); }
+.lb-name { flex: 1; font-size: 0.9rem; color: var(--text); }
+.lb-name .is-you { color: var(--accent); font-family: var(--font-mono); font-size: 0.7rem; margin-left: 6px; }
+.lb-score { font-family: var(--font-mono); font-size: 0.9rem; font-weight: 600; color: var(--accent); }
+.lb-empty { font-family: var(--font-mono); font-size: 0.8rem; color: var(--text3); text-align: center; padding: 16px 0; }
+.footer { margin-top: auto; padding-top: 48px; text-align: center; font-size: 0.75rem; color: var(--text3); font-family: var(--font-mono); }
+.toast { position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--radius-sm); padding: 12px 24px; font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent); z-index: 100; transition: transform 0.3s ease; pointer-events: none; }
+.toast.show { transform: translateX(-50%) translateY(0); }
+.setup-notice { background: rgba(255,215,107,0.08); border: 1px solid rgba(255,215,107,0.2); border-radius: var(--radius-sm); padding: 16px 20px; margin: 20px 0; font-size: 0.82rem; color: var(--yellow); line-height: 1.6; }
+@keyframes fadeInUp { from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)} }
+.fade-in { animation: fadeInUp 0.5s ease forwards; }
+.fade-in-d1 { animation: fadeInUp 0.5s ease 0.1s forwards; opacity: 0; }
+.fade-in-d2 { animation: fadeInUp 0.5s ease 0.2s forwards; opacity: 0; }
+.fade-in-d3 { animation: fadeInUp 0.5s ease 0.3s forwards; opacity: 0; }
+@media (max-width: 480px) {
+  .app { padding: 24px 16px 40px; }
+  .count-display { font-size: 4.5rem; }
+  .guess-number { font-size: 2.4rem; min-width: 90px; }
+  .guess-btn { width: 58px; height: 58px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HOME -->
+  <div class="screen active" id="screen-home">
+    <div class="header fade-in">
+      <a class="back-link" href="/">← all games</a>
+      <h1 onclick="resetGame()">estimate</h1>
+    </div>
+    <p class="phase-label fade-in-d1">Most people are terrible at counting at a glance.<br>This is a simple game to find out.</p>
+    <p class="phase-label fade-in-d2" style="font-size:0.88rem;">We'll flash a <strong>cloud of dots</strong> for less than a second. Guess how many there were.</p>
+    <div class="mode-cards fade-in-d3">
+      <div class="mode-card" onclick="showNameScreen('solo')">
+        <h3>Solo</h3>
+        <p>Five rounds, each with a different dot count. Score based on how close you are. Compete globally.</p>
+      </div>
+      <div class="mode-card" onclick="showNameScreen('multi')">
+        <h3>Multiplayer</h3>
+        <p>Same dot clouds for everyone. See who estimates best.</p>
+      </div>
+      <div class="mode-card" onclick="showNameScreen('daily')">
+        <h3>Daily</h3>
+        <p>Same five clouds for everyone on Earth today. One shot.</p>
+      </div>
+    </div>
+    <div class="difficulty-toggle fade-in-d3">
+      <button class="active" onclick="setDifficulty('easy',this)">Easy</button>
+      <button onclick="setDifficulty('hard',this)">Hard</button>
+    </div>
+    <div class="footer">Estimate v1.0</div>
+  </div>
+
+  <!-- NAME -->
+  <div class="screen" id="screen-name">
+    <div class="header">
+      <a class="back-link" href="/">← all games</a>
+      <h1 onclick="resetGame()">estimate</h1>
+    </div>
+    <p class="phase-label" id="name-subtitle">Enter your name</p>
+    <div style="max-width:360px;margin:0 auto;width:100%;">
+      <input class="input-field" id="name-input" type="text" placeholder="Your name" maxlength="20" autocomplete="off">
+      <div id="firebase-notice"></div>
+      <div class="btn-group">
+        <button class="btn btn-primary btn-full" onclick="onNameContinue()">Continue</button>
+      </div>
+      <div class="btn-group" style="margin-top:8px;">
+        <button class="btn btn-ghost" onclick="resetGame()">← Back</button>
+      </div>
+    </div>
+    <div class="footer">Estimate v1.0</div>
+  </div>
+
+  <!-- LOBBY -->
+  <div class="screen" id="screen-lobby">
+    <div class="header">
+      <a class="back-link" href="/">← all games</a>
+      <h1 onclick="resetGame()">estimate</h1>
+    </div>
+    <p class="phase-label"><strong>Multiplayer lobby</strong></p>
+    <p class="phase-label" style="font-size:0.85rem;margin-top:-16px;">Share this link. Everyone gets the same dot clouds.</p>
+    <div class="lobby-link-box">
+      <span class="link-text" id="lobby-link-text">generating...</span>
+      <button class="copy-btn" id="lobby-copy-btn" onclick="copyLobbyLink()">Copy</button>
+    </div>
+    <div class="players-list">
+      <div class="pl-title">Players</div>
+      <div id="players-container"></div>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary" onclick="startGameFromLobby()">Start game</button>
+      <button class="btn btn-ghost" onclick="resetGame()">← Leave</button>
+    </div>
+    <div class="footer">Estimate v1.0</div>
+  </div>
+
+  <!-- COUNTDOWN -->
+  <div class="screen" id="screen-countdown">
+    <div class="header"><h1>estimate</h1></div>
+    <p class="phase-label">Get ready...</p>
+    <div class="count-display" id="countdown-num">3</div>
+  </div>
+
+  <!-- FLASH -->
+  <div class="screen" id="screen-flash">
+    <div class="header"><h1>estimate</h1></div>
+    <div class="round-indicator" id="flash-round">round 1 / 5</div>
+    <div class="progress-dots" id="flash-progress"></div>
+    <p class="phase-label"><strong>Watch</strong> — how many dots?</p>
+    <div class="dot-area" id="dot-area">
+      <canvas id="dot-canvas"></canvas>
+      <div class="dot-area-label" id="dot-area-label">loading...</div>
+      <div class="flash-timer-bar" id="flash-timer-bar"></div>
+    </div>
+  </div>
+
+  <!-- GUESS -->
+  <div class="screen" id="screen-guess">
+    <div class="header"><h1>estimate</h1></div>
+    <div class="round-indicator" id="guess-round">round 1 / 5</div>
+    <div class="progress-dots" id="guess-progress"></div>
+    <p class="phase-label">How many dots were there?</p>
+    <div class="guess-area">
+      <div class="guess-controls">
+        <button class="guess-btn" id="btn-minus" aria-label="decrease">−</button>
+        <div class="guess-number" id="guess-display">10</div>
+        <button class="guess-btn" id="btn-plus" aria-label="increase">+</button>
+      </div>
+      <p class="guess-hint">hold to change faster · press Enter to confirm</p>
+    </div>
+    <div class="btn-group">
+      <button class="btn btn-primary" style="min-width:200px" onclick="submitGuess()">Confirm</button>
+    </div>
+  </div>
+
+  <!-- REVEAL -->
+  <div class="screen" id="screen-reveal">
+    <div class="header"><h1>estimate</h1></div>
+    <div class="round-indicator" id="reveal-round">round 1 / 5</div>
+    <div class="reveal-card">
+      <div class="reveal-actual" id="reveal-actual">—</div>
+      <div class="reveal-actual-label">dots</div>
+      <div class="reveal-guess-row">
+        <div class="reveal-guess-block">
+          <div class="val" id="reveal-guess-val">—</div>
+          <div class="lbl">your guess</div>
+        </div>
+        <div class="reveal-guess-block">
+          <div class="val" id="reveal-diff-val">—</div>
+          <div class="lbl">off by</div>
+        </div>
+      </div>
+      <div class="reveal-score" id="reveal-score-el">— pts</div>
+      <div class="reveal-diff" id="reveal-diff-label"></div>
+    </div>
+    <p class="phase-label" id="reveal-next-label" style="font-size:0.82rem;">Next round in a moment...</p>
+  </div>
+
+  <!-- RESULTS -->
+  <div class="screen" id="screen-results">
+    <div class="header">
+      <a class="back-link" href="/">← all games</a>
+      <h1 onclick="resetGame()">estimate</h1>
+    </div>
+    <div class="total-score fade-in">
+      <span class="value" id="total-score-val">0.0</span><span class="max">/50</span>
+      <div class="tagline" id="score-tagline"></div>
+    </div>
+    <div class="results-card fade-in-d1" id="results-list"></div>
+    <div class="leaderboard fade-in-d2" id="leaderboard-section" style="display:none;">
+      <div class="lb-title" id="lb-title">Leaderboard</div>
+      <div id="lb-rows"></div>
+    </div>
+    <div class="btn-group fade-in-d3">
+      <button class="btn btn-primary" onclick="resetGame()">Play Again</button>
+      <button class="btn btn-secondary" onclick="shareScore()">Share</button>
+    </div>
+    <div class="footer">Estimate v1.0</div>
+  </div>
+
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBhWVPR_FsMMuY9wqZarMd-L0APN7PvaEQ",
+  authDomain: "browsergames-f4d49.firebaseapp.com",
+  databaseURL: "https://browsergames-f4d49-default-rtdb.firebaseio.com",
+  projectId: "browsergames-f4d49",
+  storageBucket: "browsergames-f4d49.firebasestorage.app",
+  messagingSenderId: "741862874518",
+  appId: "1:741862874518:web:afceba47be6ac18a9e51b7"
+};
+
+let db = null, firebaseReady = false;
+function initFirebase() {
+  try {
+    if (!FIREBASE_CONFIG.databaseURL) return;
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.database();
+    firebaseReady = true;
+  } catch(e) { console.warn('Firebase:', e); }
+}
+initFirebase();
+
+// ═══ SEEDED RNG ═══
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    var t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function hashCode(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h |= 0; }
+  return h;
+}
+
+// ═══ DOT GENERATION ═══
+function generateDots(count, w, h, radius) {
+  const dots = [];
+  const margin = radius + 6;
+  const minDist = radius * 2.4;
+  let attempts = 0;
+  while (dots.length < count && attempts < count * 80) {
+    const x = margin + Math.random() * (w - margin * 2);
+    const y = margin + Math.random() * (h - margin * 2);
+    if (!dots.some(d => Math.hypot(d.x - x, d.y - y) < minDist)) {
+      dots.push({ x, y });
+    }
+    attempts++;
+  }
+  // If still not enough, relax constraint
+  while (dots.length < count) {
+    const x = margin + Math.random() * (w - margin * 2);
+    const y = margin + Math.random() * (h - margin * 2);
+    dots.push({ x, y });
+  }
+  return dots;
+}
+
+function drawDots(canvas, dots, radius, alpha) {
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.globalAlpha = alpha;
+  dots.forEach(d => {
+    ctx.beginPath();
+    ctx.arc(d.x, d.y, radius, 0, Math.PI * 2);
+    ctx.fillStyle = '#6ef0a5';
+    ctx.fill();
+    // Subtle inner glow
+    const grad = ctx.createRadialGradient(d.x - radius * 0.3, d.y - radius * 0.3, 0, d.x, d.y, radius);
+    grad.addColorStop(0, 'rgba(255,255,255,0.35)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+}
+
+// ═══ STATE ═══
+let difficulty = 'easy';
+let gameMode = 'solo';
+let playerName = '', playerId = '', lobbyCode = '';
+let currentRound = 0;
+const TOTAL_ROUNDS = 5;
+let rounds = []; // [{dotCount, dots}]
+let allResults = []; // [{actual, guess, score}]
+let currentGuess = 10;
+let lobbyListenerRef = null, lbListenerRef = null;
+
+const SETTINGS = {
+  easy: { min: 8,  max: 24, flashMs: 800, radius: 9 },
+  hard: { min: 15, max: 50, flashMs: 450, radius: 7 }
+};
+
+// ═══ HELPERS ═══
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function setDifficulty(d, el) {
+  difficulty = d;
+  document.querySelectorAll('.difficulty-toggle button').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+function genCode() {
+  const c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let r = '';
+  for (let i = 0; i < 6; i++) r += c[Math.floor(Math.random() * c.length)];
+  return r;
+}
+function genId() { return 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function getDailySeed() {
+  const d = new Date();
+  return `est-daily-${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function buildProgress(container, current) {
+  container.innerHTML = '';
+  for (let i = 0; i < TOTAL_ROUNDS; i++) {
+    const d = document.createElement('div');
+    d.className = 'progress-dot';
+    if (i < current) d.classList.add('done');
+    if (i === current) d.classList.add('active');
+    container.appendChild(d);
+  }
+}
+
+// ═══ ROUND GENERATION ═══
+function generateRounds(seed) {
+  const s = SETTINGS[difficulty];
+  const rng = seed ? mulberry32(hashCode(seed)) : mulberry32(Date.now());
+  rounds = [];
+  for (let i = 0; i < TOTAL_ROUNDS; i++) {
+    const dotCount = Math.floor(rng() * (s.max - s.min + 1)) + s.min;
+    rounds.push({ dotCount, dots: null }); // dots generated lazily per canvas size
+  }
+}
+
+// ═══ SCORING ═══
+function scoreRound(actual, guess) {
+  const diff = Math.abs(actual - guess);
+  // Percentage-based: being off by the full actual count = 0 pts
+  return Math.max(0, 10 * (1 - diff / actual));
+}
+
+// ═══ NAME/MODE ═══
+function showNameScreen(mode) {
+  gameMode = mode;
+  showScreen('screen-name');
+  const sub = document.getElementById('name-subtitle');
+  if (mode === 'solo') sub.textContent = 'Enter your name';
+  else if (mode === 'multi') sub.textContent = 'Enter your name for multiplayer';
+  else sub.textContent = 'Enter your name for the daily challenge';
+
+  const notice = document.getElementById('firebase-notice');
+  if ((mode === 'multi' || mode === 'daily') && !firebaseReady) {
+    notice.innerHTML = '<div class="setup-notice">Firebase not connected — scores won\'t sync online.</div>';
+  } else { notice.innerHTML = ''; }
+
+  const inp = document.getElementById('name-input');
+  inp.value = playerName || '';
+  setTimeout(() => inp.focus(), 100);
+}
+
+function onNameContinue() {
+  const name = document.getElementById('name-input').value.trim();
+  if (!name) { showToast('Enter a name'); return; }
+  playerName = name;
+  playerId = genId();
+
+  if (gameMode === 'solo') {
+    generateRounds(null);
+    startCountdownThenPlay();
+  } else if (gameMode === 'multi') {
+    const urlCode = new URLSearchParams(window.location.search).get('c');
+    lobbyCode = urlCode ? urlCode.toUpperCase() : genCode();
+    generateRounds('est-' + lobbyCode + '-' + difficulty);
+    setupLobby();
+  } else {
+    lobbyCode = getDailySeed();
+    generateRounds(lobbyCode + '-' + difficulty);
+    if (firebaseReady) db.ref('est-daily/'+lobbyCode+'/players/'+playerId).set({ name: playerName, score: null, ts: Date.now() });
+    startCountdownThenPlay();
+  }
+}
+
+document.getElementById('name-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') onNameContinue();
+});
+
+// ═══ LOBBY ═══
+function setupLobby() {
+  showScreen('screen-lobby');
+  const url = window.location.origin + window.location.pathname + '?c=' + lobbyCode;
+  document.getElementById('lobby-link-text').textContent = url;
+  history.replaceState(null, '', '?c=' + lobbyCode);
+
+  if (firebaseReady) {
+    const myRef = db.ref('est-lobbies/' + lobbyCode + '/players/' + playerId);
+    myRef.set({ name: playerName, status: 'waiting', score: null, joinedAt: Date.now() });
+    myRef.onDisconnect().remove();
+    cleanupListeners();
+    const ref = db.ref('est-lobbies/' + lobbyCode + '/players');
+    lobbyListenerRef = ref;
+    ref.on('value', snap => renderPlayers(snap.val() || {}));
+  } else {
+    renderPlayers({ [playerId]: { name: playerName, status: 'waiting', score: null } });
+  }
+}
+
+function renderPlayers(obj) {
+  const c = document.getElementById('players-container');
+  c.innerHTML = '';
+  Object.entries(obj).sort((a,b) => (a[1].joinedAt||0)-(b[1].joinedAt||0)).forEach(([pid, p]) => {
+    const me = pid === playerId;
+    const ini = (p.name||'?').slice(0,2).toUpperCase();
+    const sc = p.status === 'done' ? 'done' : p.status === 'playing' ? 'playing' : 'waiting';
+    const st = p.score != null ? p.score.toFixed(1)+'/50' : p.status === 'playing' ? 'playing...' : 'waiting';
+    c.innerHTML += `<div class="player-row">
+      <div class="player-avatar">${ini}</div>
+      <div class="player-name">${p.name}${me ? '<span class="you">you</span>' : ''}</div>
+      <div class="player-status ${sc}">${st}</div>
+    </div>`;
+  });
+}
+
+function copyLobbyLink() {
+  const url = document.getElementById('lobby-link-text').textContent;
+  navigator.clipboard.writeText(url).then(() => {
+    document.getElementById('lobby-copy-btn').textContent = 'Copied!';
+    setTimeout(() => document.getElementById('lobby-copy-btn').textContent = 'Copy', 1500);
+  }).catch(() => showToast('Copy the link manually'));
+}
+
+function startGameFromLobby() {
+  if (firebaseReady) db.ref('est-lobbies/'+lobbyCode+'/players/'+playerId+'/status').set('playing');
+  startCountdownThenPlay();
+}
+
+function cleanupListeners() {
+  if (lobbyListenerRef) { lobbyListenerRef.off(); lobbyListenerRef = null; }
+  if (lbListenerRef) { lbListenerRef.off(); lbListenerRef = null; }
+}
+
+// ═══ GAME LOOP ═══
+async function startCountdownThenPlay() {
+  currentRound = 0;
+  allResults = [];
+  await doCountdown();
+  playRound();
+}
+
+async function doCountdown() {
+  showScreen('screen-countdown');
+  const el = document.getElementById('countdown-num');
+  for (let i = 3; i >= 1; i--) {
+    el.textContent = i;
+    el.style.animation = 'none';
+    void el.offsetHeight;
+    el.style.animation = 'countPulse 0.6s ease forwards';
+    await sleep(800);
+  }
+}
+
+async function playRound() {
+  const round = rounds[currentRound];
+  const s = SETTINGS[difficulty];
+
+  // ── FLASH PHASE ──
+  showScreen('screen-flash');
+  document.getElementById('flash-round').textContent = `round ${currentRound + 1} / ${TOTAL_ROUNDS}`;
+  buildProgress(document.getElementById('flash-progress'), currentRound);
+
+  const area = document.getElementById('dot-area');
+  const canvas = document.getElementById('dot-canvas');
+  const label = document.getElementById('dot-area-label');
+  const timerBar = document.getElementById('flash-timer-bar');
+
+  // Size canvas to its container
+  await sleep(50); // let layout settle
+  const W = area.clientWidth;
+  const H = area.clientHeight;
+  canvas.width = W;
+  canvas.height = H;
+
+  // Generate dots using seeded positions for this round
+  const rng = mulberry32(hashCode((lobbyCode || 'solo') + '-round-' + currentRound + '-' + difficulty + rounds[currentRound].dotCount));
+  const dotList = [];
+  const margin = s.radius + 6;
+  const minDist = s.radius * 2.4;
+  let att = 0;
+  while (dotList.length < round.dotCount && att < round.dotCount * 100) {
+    const x = margin + rng() * (W - margin * 2);
+    const y = margin + rng() * (H - margin * 2);
+    if (!dotList.some(d => Math.hypot(d.x - x, d.y - y) < minDist)) dotList.push({x, y});
+    att++;
+  }
+  while (dotList.length < round.dotCount) {
+    dotList.push({ x: margin + rng() * (W - margin * 2), y: margin + rng() * (H - margin * 2) });
+  }
+
+  label.style.opacity = '0';
+  canvas.style.opacity = '1';
+
+  // Draw dots
+  drawDots(canvas, dotList, s.radius, 1);
+
+  // Animate timer bar shrinking
+  timerBar.style.transition = 'none';
+  timerBar.style.width = '100%';
+  await sleep(20);
+  timerBar.style.transition = `width ${s.flashMs}ms linear`;
+  timerBar.style.width = '0%';
+
+  // After flashMs, clear the canvas
+  await sleep(s.flashMs);
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+  canvas.style.opacity = '0';
+  label.textContent = '?';
+  label.style.opacity = '1';
+
+  await sleep(300);
+
+  // ── GUESS PHASE ──
+  // Set initial guess to midpoint of range
+  currentGuess = Math.round((s.min + s.max) / 2);
+  document.getElementById('guess-display').textContent = currentGuess;
+  document.getElementById('guess-round').textContent = `round ${currentRound + 1} / ${TOTAL_ROUNDS}`;
+  buildProgress(document.getElementById('guess-progress'), currentRound);
+  showScreen('screen-guess');
+}
+
+// ═══ +/- CONTROLS (with hold-to-accelerate) ═══
+let holdTimer = null, holdInterval = null;
+
+function changeGuess(delta) {
+  const s = SETTINGS[difficulty];
+  const maxVal = s.max + Math.ceil(s.max * 0.5);
+  currentGuess = Math.max(1, Math.min(maxVal, currentGuess + delta));
+  document.getElementById('guess-display').textContent = currentGuess;
+}
+
+function startHold(delta) {
+  changeGuess(delta);
+  holdTimer = setTimeout(() => {
+    holdInterval = setInterval(() => changeGuess(delta), 80);
+  }, 400);
+}
+
+function stopHold() {
+  clearTimeout(holdTimer);
+  clearInterval(holdInterval);
+  holdTimer = holdInterval = null;
+}
+
+document.getElementById('btn-minus').addEventListener('pointerdown', e => { e.preventDefault(); startHold(-1); });
+document.getElementById('btn-plus').addEventListener('pointerdown',  e => { e.preventDefault(); startHold(+1); });
+document.addEventListener('pointerup',   stopHold);
+document.addEventListener('pointercancel', stopHold);
+
+document.addEventListener('keydown', e => {
+  if (document.getElementById('screen-guess').classList.contains('active')) {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { e.preventDefault(); changeGuess(-1); }
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp')  { e.preventDefault(); changeGuess(+1); }
+    if (e.key === 'Enter') submitGuess();
+  }
+});
+
+async function submitGuess() {
+  const actual = rounds[currentRound].dotCount;
+  const guess = currentGuess;
+  const score = scoreRound(actual, guess);
+  allResults.push({ actual, guess, score });
+
+  // ── REVEAL PHASE ──
+  showScreen('screen-reveal');
+  document.getElementById('reveal-round').textContent = `round ${currentRound + 1} / ${TOTAL_ROUNDS}`;
+  document.getElementById('reveal-actual').textContent = actual;
+  document.getElementById('reveal-guess-val').textContent = guess;
+  const diff = Math.abs(actual - guess);
+  document.getElementById('reveal-diff-val').textContent = diff === 0 ? '0 ✓' : diff;
+
+  const scoreEl = document.getElementById('reveal-score-el');
+  scoreEl.textContent = score.toFixed(1) + ' / 10';
+  const pct = score / 10;
+  scoreEl.className = 'reveal-score ' + (pct >= 0.8 ? 'great' : pct >= 0.5 ? 'ok' : 'bad');
+
+  const diffLabel = document.getElementById('reveal-diff-label');
+  if (diff === 0) diffLabel.textContent = 'Perfect!';
+  else {
+    const pctOff = Math.round((diff / actual) * 100);
+    diffLabel.textContent = `${pctOff}% off`;
+  }
+
+  currentRound++;
+  const isLast = currentRound >= TOTAL_ROUNDS;
+  document.getElementById('reveal-next-label').textContent = isLast ? 'Calculating results...' : 'Next round in a moment...';
+
+  await sleep(isLast ? 1200 : 2000);
+
+  if (isLast) onFinished();
+  else {
+    // Mini transition
+    showScreen('screen-countdown');
+    const el = document.getElementById('countdown-num');
+    el.textContent = '↻';
+    el.style.animation = 'none';
+    void el.offsetHeight;
+    el.style.animation = 'countPulse 0.6s ease forwards';
+    await sleep(700);
+    playRound();
+  }
+}
+
+function onFinished() {
+  const total = allResults.reduce((s,r) => s + r.score, 0);
+  if (firebaseReady) {
+    if (gameMode === 'solo') {
+      db.ref('est-solo/'+difficulty+'/scores/'+playerId).set({ name: playerName, score: total, ts: Date.now() });
+    }
+    if (gameMode === 'multi') {
+      db.ref('est-lobbies/'+lobbyCode+'/players/'+playerId).update({ status:'done', score:total });
+    }
+    if (gameMode === 'daily') {
+      db.ref('est-daily/'+lobbyCode+'/players/'+playerId).update({ score:total, name:playerName });
+    }
+  }
+  showResultsScreen(total);
+}
+
+function showResultsScreen(total) {
+  showScreen('screen-results');
+  document.getElementById('total-score-val').textContent = total.toFixed(1);
+
+  const pct = total / 50;
+  let tag = '';
+  if (pct >= 0.92) tag = "Uncanny numerical intuition. Almost superhuman.";
+  else if (pct >= 0.78) tag = "Very sharp estimation. Well above average.";
+  else if (pct >= 0.60) tag = "Decent subitizing. Room to sharpen it.";
+  else if (pct >= 0.40) tag = "Pretty rough. Your brain hates big numbers.";
+  else tag = "You're just guessing. Which is fine, honestly.";
+  document.getElementById('score-tagline').textContent = tag;
+
+  const list = document.getElementById('results-list');
+  list.innerHTML = '';
+  const maxDots = Math.max(...allResults.map(r => r.actual), 1);
+
+  allResults.forEach((r, i) => {
+    const sc = r.score >= 8 ? 'score-great' : r.score >= 5 ? 'score-ok' : 'score-bad';
+    const actualW = (r.actual / maxDots) * 100;
+    const guessW = (r.guess / maxDots) * 100;
+    const row = document.createElement('div');
+    row.className = 'result-row';
+    row.innerHTML = `
+      <div class="result-idx">#${i+1}</div>
+      <div class="result-bar-section">
+        <div class="result-nums">
+          <span>${r.actual} dots</span>
+          <span>guessed ${r.guess}</span>
+        </div>
+        <div class="result-bar-bg">
+          <div class="result-bar-actual" style="width:${actualW}%"></div>
+          <div class="result-bar-guess" style="width:${guessW}%;opacity:0.7;"></div>
+        </div>
+      </div>
+      <div class="result-score-pill ${sc}">${r.score.toFixed(1)}</div>`;
+    list.appendChild(row);
+  });
+
+  // Leaderboard
+  const lb = document.getElementById('leaderboard-section');
+  if (firebaseReady) {
+    lb.style.display = 'block';
+    if (gameMode === 'solo') {
+      document.getElementById('lb-title').textContent = 'Global leaderboard (' + difficulty + ')';
+      if (lbListenerRef) lbListenerRef.off();
+      const ref = db.ref('est-solo/'+difficulty+'/scores').orderByChild('score').limitToLast(10);
+      lbListenerRef = ref;
+      ref.on('value', snap => renderLb(snap, false));
+    } else {
+      const isDaily = gameMode === 'daily';
+      document.getElementById('lb-title').textContent = isDaily ? 'Daily leaderboard' : 'Lobby leaderboard';
+      const path = isDaily ? 'est-daily/'+lobbyCode+'/players' : 'est-lobbies/'+lobbyCode+'/players';
+      if (lbListenerRef) lbListenerRef.off();
+      const ref = db.ref(path);
+      lbListenerRef = ref;
+      ref.on('value', snap => renderLb(snap, true));
+    }
+  } else {
+    lb.style.display = 'none';
+  }
+}
+
+function renderLb(snap, filterNull) {
+  const rows = document.getElementById('lb-rows');
+  rows.innerHTML = '';
+  const entries = [];
+  snap.forEach(c => {
+    const d = c.val();
+    if (filterNull && d.score == null) return;
+    entries.push({ id: c.key, ...d });
+  });
+  entries.sort((a,b) => b.score - a.score);
+  if (!entries.length) {
+    rows.innerHTML = '<div class="lb-empty">No scores yet — you\'re first!</div>';
+    return;
+  }
+  entries.forEach((e,i) => {
+    const me = e.id === playerId;
+    rows.innerHTML += `<div class="lb-row">
+      <div class="lb-rank ${i===0?'gold':''}">${i+1}</div>
+      <div class="lb-name">${e.name}${me?'<span class="is-you">you</span>':''}</div>
+      <div class="lb-score">${e.score.toFixed(1)}</div>
+    </div>`;
+  });
+}
+
+function shareScore() {
+  const total = allResults.reduce((s,r) => s + r.score, 0);
+  let text = `· Estimate — ${total.toFixed(1)}/50 (${difficulty})\n`;
+  allResults.forEach(r => {
+    const p = r.score / 10;
+    text += p >= 0.8 ? '🟩' : p >= 0.5 ? '🟨' : '🟥';
+  });
+  text += '\n' + window.location.origin + '/estimate.html';
+  if (navigator.share) navigator.share({ text }).catch(() => {});
+  else navigator.clipboard.writeText(text).then(() => showToast('Score copied!')).catch(() => {});
+}
+
+function resetGame() {
+  cleanupListeners();
+  history.replaceState(null, '', window.location.pathname);
+  showScreen('screen-home');
+}
+
+(function checkUrl() {
+  const p = new URLSearchParams(window.location.search);
+  if (p.get('c')) { gameMode = 'multi'; lobbyCode = p.get('c').toUpperCase(); showNameScreen('multi'); }
+  else if (p.get('mode') === 'daily') { showNameScreen('daily'); }
+})();
+</script>
+</body>
+</html>

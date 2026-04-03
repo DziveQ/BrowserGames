@@ -5,6 +5,7 @@
   "routes": [
     { "src": "/", "dest": "/index.html" },
     { "src": "/tempo", "dest": "/tempo.html" },
-    { "src": "/shape", "dest": "/shape.html" }
+    { "src": "/shape", "dest": "/shape.html" },
+    { "src": "/estimate", "dest": "/estimate.html" }
   ]
 }
