@@ -1,5 +1,10 @@
 {
   "buildCommand": "",
-  "outputDirectory": "public",
-  "framework": null
+  "outputDirectory": ".",
+  "framework": null,
+  "routes": [
+    { "src": "/", "dest": "/index.html" },
+    { "src": "/tempo", "dest": "/tempo.html" },
+    { "src": "/shape", "dest": "/shape.html" }
+  ]
 }
