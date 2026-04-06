@@ -8,7 +8,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-<style>
+<!-- Google AdSense — replace YOUR_PUB_ID with your ca-pub-XXXXXXXXXXXXXXXX -->
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1299529277907508"
+     crossorigin="anonymous"></script><style>
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 :root {
   --bg: #0a0a0f;
@@ -172,6 +174,13 @@ body::after {
   color: var(--text3);
   font-family: var(--font-mono);
 }
+.ad-slot {
+  width: 100%;
+  margin: 4px 0;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  opacity: 0.9;
+}
 @keyframes fadeInUp { from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)} }
 .fade-in { animation: fadeInUp 0.5s ease forwards; }
 .fade-in-d1 { animation: fadeInUp 0.5s ease 0.1s forwards; opacity: 0; }
@@ -215,6 +224,17 @@ body::after {
         </div>
       </div>
     </a>
+
+    <!-- Ad between Shape and Estimate — replace YOUR_PUB_ID and YOUR_AD_SLOT_INDEX -->
+    <div class="ad-slot">
+      <ins class="adsbygoogle"
+           style="display:block"
+           data-ad-client="ca-pub-YOUR_PUB_ID"
+           data-ad-slot="YOUR_AD_SLOT_INDEX"
+           data-ad-format="auto"
+           data-full-width-responsive="true"></ins>
+      <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+    </div>
 
     <a class="game-card fade-in-d3" href="/estimate.html">
       <div class="arrow">→</div>
